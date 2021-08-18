@@ -5,3 +5,6 @@
 ## 1.0.1
 
 - Formatting
+
+## 2.0.0
+- (BREAKING) Null safety
