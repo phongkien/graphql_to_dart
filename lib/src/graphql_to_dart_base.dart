@@ -32,6 +32,9 @@ class GraphQlToDart {
     final schema = await localGraphQLClient.fetchTypes();
     TypeConverters converters = TypeConverters();
     converters.overrideTypes(config.typeOverride);
+
+    StringBuffer exportBuffer = StringBuffer();
+
     await Future.forEach(schema.types!, (Types type) async {
       if (type.fields != null &&
           type.inputFields == null &&
@@ -40,11 +43,24 @@ class GraphQlToDart {
         print("Creating model from: ${type.name}");
         TypeBuilder builder = TypeBuilder(type, config);
         await builder.build();
+        exportBuffer
+            .writeln("export '${TypeBuilder.pascalToSnake(type.name!)}.dart';");
       }
     });
+    await _createExportFile(exportBuffer);
     print("Formatting Generated Files");
     await runFlutterFormat();
     return;
+  }
+
+  Future<void> _createExportFile(StringBuffer buffer) async {
+    File file =
+        File(FileConstants().modelsDirectory.path + "/generated_models.dart");
+    if (!(await file.exists())) {
+      await file.create();
+    }
+    await file.writeAsString(buffer.toString());
+    return null;
   }
 
   Future runFlutterFormat() async {

@@ -33,9 +33,7 @@ class TypeBuilder {
 
   _addImports() {
     StringBuffer importBuffer = StringBuffer();
-    localFields
-        .unique<String>(((field) => field.type!) as String Function(LocalField))
-        .forEach((field) {
+    localFields.unique(((field) => field.type ?? '')).forEach((field) {
       if (field.object == true) {
         if (config.dynamicImportPath) {
           importBuffer.writeln(
@@ -60,19 +58,19 @@ class TypeBuilder {
       if (field.list == true) {
         if (field.type == "DateTime") {
           toJsonBuilder.writeln(
-              "_data['${field.name}'] = List.generate(${field.name}?.length ?? 0, (index)=> ${field.name}[index].toString());");
+              "_data['${field.name}'] = List.generate(${field.name}${field.nonNull ? '.length' : '?.length ?? 0'}, (index)=> ${field.name}[index].toString());");
         } else if (field.object == true) {
           toJsonBuilder.writeln(
-              "_data['${field.name}'] = List.generate(${field.name}?.length ?? 0, (index)=> ${field.name}[index].toJson());");
+              "_data['${field.name}'] = List.generate(${field.name}${field.nonNull ? '.length' : '?.length ?? 0'}, (index)=> ${field.name}[index].toJson());");
         } else {
           toJsonBuilder.writeln("_data['${field.name}'] = ${field.name};");
         }
       } else if (field.object == true) {
-        toJsonBuilder
-            .writeln("_data['${field.name}'] = ${field.name}?.toJson();");
+        toJsonBuilder.writeln(
+            "_data['${field.name}'] = ${field.name}${field.nonNull ? '' : '?'}.toJson();");
       } else if (field.type == "DateTime") {
-        toJsonBuilder
-            .writeln("_data['${field.name}'] = ${field.name}?.toString();");
+        toJsonBuilder.writeln(
+            "_data['${field.name}'] = ${field.name}${field.nonNull ? '' : '?'}.toString();");
       } else {
         toJsonBuilder.writeln("_data['${field.name}'] = ${field.name};");
       }
@@ -89,23 +87,35 @@ class TypeBuilder {
     localFields.forEach((field) {
       if (field.list == true) {
         fromJsonBuilder.write("""
-${field.name} = json['${field.name}']!=null ?
-${field.object == true ? "List.generate(json['${field.name}'].length, (index)=> ${field.type}.fromJson(json['${field.name}'][index]))" : field.type == "DateTime" ? "List.generate(json['${field.name}'].length, (index)=> DateTime.parse(json['${field.name}'][index]))" : "json['${field.name}']"}: null;
+${field.name}: (json['${field.name}']!=null ?
+${field.object == true ? "List.generate(json['${field.name}'].length, (index)=> ${field.type}.fromJson(json['${field.name}'][index]))" : field.type == "DateTime" ? "List.generate(json['${field.name}'].length, (index)=> DateTime.parse(json['${field.name}'][index]))" : "json['${field.name}']"}: ${field.nonNull ? '[]' : null}),
         """);
       } else if (field.object == true) {
-        fromJsonBuilder.writeln(
-            "${field.name} = json['${field.name}']!=null ? ${field.type}.fromJson(json['${field.name}']) : null;");
+        if (field.nonNull) {
+          fromJsonBuilder.writeln(
+              "${field.name}: ${field.type}.fromJson(json['${field.name}']!),");
+        } else {
+          fromJsonBuilder.writeln(
+              "${field.name}: (json['${field.name}']!=null ? ${field.type}.fromJson(json['${field.name}']) : null),");
+        }
       } else if (field.type == "DateTime") {
-        fromJsonBuilder.writeln(
-            "${field.name} = json['${field.name}']!=null ? DateTime.parse(json['${field.name}']) : null;");
+        if (field.nonNull) {
+          fromJsonBuilder.writeln(
+              "${field.name}: DateTime.parse(json['${field.name}']!),");
+        } else {
+          fromJsonBuilder.writeln(
+              "${field.name}: (json['${field.name}']!=null ? DateTime.parse(json['${field.name}']) : null),");
+        }
       } else {
-        fromJsonBuilder.writeln("${field.name} = json['${field.name}'];");
+        fromJsonBuilder.writeln("${field.name}: json['${field.name}'],");
       }
     });
     stringBuffer.writeln();
     stringBuffer.writeln();
-    stringBuffer.write(_wrapWith(fromJsonBuilder.toString(),
-        "${type.name}.fromJson(Map<String, dynamic> json){", "}"));
+    stringBuffer.write(_wrapWith(
+        fromJsonBuilder.toString(),
+        "static ${type.name} fromJson(Map<String, dynamic> json){ return ${type.name}(",
+        ");}"));
   }
 
   _saveToFile() async {
@@ -177,7 +187,7 @@ ${field.object == true ? "List.generate(json['${field.name}'].length, (index)=> 
     return updated;
   }
 
-  String pascalToSnake(String pascalCasedString) {
+  static String pascalToSnake(String pascalCasedString) {
     return ReCase(pascalCasedString).snakeCase;
   }
 }
@@ -193,14 +203,16 @@ class LocalField {
       {this.name, this.list, this.type, this.object, this.nonNull = false});
 
   String toDeclarationStatement() {
-    final decType =
-        "${list! ? "List<" : ""}${type ?? "var"}${list! ? ">" : ""}";
+    final varType = type ?? 'var';
 
-    return '$decType ${nonNull == false ? "?" : ""} $name;';
+    final decType =
+        "${list == true ? "List<" : ""}$varType${list == true ? ">" : ""}";
+
+    return '$decType${nonNull == false && varType != "var" && list != true ? "?" : ""} $name;';
   }
 
   String toConstructorDeclaration() {
-    return '${nonNull ? "required" : ""}this.${this.name}';
+    return '${nonNull ? "required " : ""}this.${this.name}';
   }
 
   @override
