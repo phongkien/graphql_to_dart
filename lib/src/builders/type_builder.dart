@@ -33,17 +33,17 @@ class TypeBuilder {
 
   _addImports() {
     StringBuffer importBuffer = StringBuffer();
-    localFields.unique<String>((field) => field.type).forEach((field) {
+    localFields
+        .unique<String>(((field) => field.type!) as String Function(LocalField))
+        .forEach((field) {
       if (field.object == true) {
-        if(config.dynamicImportPath){
-        importBuffer.writeln(
-            "import 'package:${config.packageName}/${config.modelsDirectoryPath.replaceAll(r"lib/", "")}/${pascalToSnake(field.type)}.dart';"
-                .replaceAll(r"//", r"/"));
-      }
-        else{
+        if (config.dynamicImportPath) {
           importBuffer.writeln(
-            "import '${pascalToSnake(field.type)}.dart';"
-                .replaceAll(r"//", r"/"));
+              "import 'package:${config.packageName}/${config.modelsDirectoryPath!.replaceAll(r"lib/", "")}/${pascalToSnake(field.type!)}.dart';"
+                  .replaceAll(r"//", r"/"));
+        } else {
+          importBuffer.writeln("import '${pascalToSnake(field.type!)}.dart';"
+              .replaceAll(r"//", r"/"));
         }
       }
     });
@@ -83,7 +83,7 @@ class TypeBuilder {
     stringBuffer
         .write(_wrapWith(toJsonBuilder.toString(), "Map toJson(){", "}"));
   }
-  
+
   _addFromJson() {
     StringBuffer fromJsonBuilder = StringBuffer();
     localFields.forEach((field) {
@@ -110,7 +110,7 @@ ${field.object == true ? "List.generate(json['${field.name}'].length, (index)=> 
 
   _saveToFile() async {
     File file = File(FileConstants().modelsDirectory.path +
-        "/${pascalToSnake(type.name)}.dart".replaceAll(r"//", r"/"));
+        "/${pascalToSnake(type.name!)}.dart".replaceAll(r"//", r"/"));
     if (!(await file.exists())) {
       await file.create();
     }
@@ -119,15 +119,15 @@ ${field.object == true ? "List.generate(json['${field.name}'].length, (index)=> 
   }
 
   _addFields() {
-    type.fields.forEach((field) {
-      _typeOrdering(field.type, field.name);
+    type.fields!.forEach((field) {
+      _typeOrdering(field.type!, field.name);
     });
   }
 
   _addConstructor() {
     StringBuffer constructorBuffer = StringBuffer();
     for (int i = 0; i < localFields.length; i++) {
-      constructorBuffer.write("this.${localFields[i].name}");
+      constructorBuffer.write('${localFields[i].toConstructorDeclaration()}');
       if (i < localFields.length - 1) {
         constructorBuffer.write(",");
       }
@@ -136,29 +136,37 @@ ${field.object == true ? "List.generate(json['${field.name}'].length, (index)=> 
         _wrapWith(constructorBuffer.toString(), "${type.name}({", "});"));
   }
 
-  _typeOrdering(Type type, String fieldName) {
+  _typeOrdering(Type type, String? fieldName) {
     bool list = false;
     LocalField localField;
+    bool nonNull = false;
     if (type.kind == "NON_NULL") {
-      type = type.ofType;
+      nonNull = true;
+      type = type.ofType!;
     }
     if (type.kind == "LIST") {
       list = true;
-      type = type.ofType;
+      type = type.ofType!;
     }
     if (type.kind == "NON_NULL") {
-      type = type.ofType;
+      nonNull = true;
+      type = type.ofType!;
     }
     if (type.kind == scalar) {
       localField = LocalField(
           name: fieldName,
           list: list,
-          type: TypeConverters().nonObjectTypes[type.name.toLowerCase()],
-          object: false);
+          type: TypeConverters().nonObjectTypes[type.name!.toLowerCase()],
+          object: false,
+          nonNull: nonNull);
       localFields.add(localField);
     } else {
-      localField =
-          LocalField(name: fieldName, list: list, type: type.name, object: true);
+      localField = LocalField(
+          name: fieldName,
+          list: list,
+          type: type.name,
+          object: true,
+          nonNull: nonNull);
       localFields.add(localField);
     }
     stringBuffer.writeln(localField.toDeclarationStatement());
@@ -175,20 +183,29 @@ ${field.object == true ? "List.generate(json['${field.name}'].length, (index)=> 
 }
 
 class LocalField {
-  final String name;
-  final bool list;
-  final String type;
-  final bool object;
+  final String? name;
+  final bool? list;
+  final String? type;
+  final bool? object;
+  final bool nonNull;
 
-  LocalField({this.name, this.list, this.type, this.object});
+  LocalField(
+      {this.name, this.list, this.type, this.object, this.nonNull = false});
 
   String toDeclarationStatement() {
-    return "${list ? "List<" : ""}${type ?? "var"}${list ? ">" : ""} $name;";
+    final decType =
+        "${list! ? "List<" : ""}${type ?? "var"}${list! ? ">" : ""}";
+
+    return '$decType ${nonNull == false ? "?" : ""} $name;';
+  }
+
+  String toConstructorDeclaration() {
+    return '${nonNull ? "required" : ""}this.${this.name}';
   }
 
   @override
   String toString() {
     // TODO: implement toString
-    return type;
+    return type!;
   }
 }
