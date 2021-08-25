@@ -88,7 +88,7 @@ class TypeBuilder {
       if (field.list == true) {
         fromJsonBuilder.write("""
 ${field.name}: (json['${field.name}']!=null ?
-${field.object == true ? "List.generate(json['${field.name}'].length, (index)=> ${field.type}.fromJson(json['${field.name}'][index]))" : field.type == "DateTime" ? "List.generate(json['${field.name}'].length, (index)=> DateTime.parse(json['${field.name}'][index]))" : "json['${field.name}']"}: ${field.nonNull ? '[]' : null}),
+${field.object == true ? "List.generate(json['${field.name}'].length, (index)=> ${field.type}.fromJson(json['${field.name}'][index]))" : field.type == "DateTime" ? "List.generate(json['${field.name}'].length, (index)=> DateTime.parse(json['${field.name}'][index]))" : "json['${field.name}'].cast<${field.type}>()"}: ${field.nonNull ? '[]' : null}),
         """);
       } else if (field.object == true) {
         if (field.nonNull) {
